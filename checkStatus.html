@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Internet Speed Check</title>
+</head>
+<body>
+  <h2>RTA Network Status</h2>
+  <p id="status">Checking...</p>
+
+  <script>
+    const testUrl = '/assets/speed-test.bin';
+    const offlineThresholdMbps = 0.5;
+    const intervalMs = 10000; // 10 seconds
+
+    async function checkEffectiveInternetStatus() {
+      const startTime = performance.now();
+      try {
+        const response = await fetch(testUrl, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error('Failed to download test file');
+        }
+
+        const reader = response.body.getReader();
+        let receivedLength = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          receivedLength += value.length;
+        }
+
+        // Close the stream explicitly (good practice)
+        reader.releaseLock();
+
+        const endTime = performance.now();
+        const durationSec = (endTime - startTime) / 1000;
+        const bitsLoaded = receivedLength * 8;
+        const speedMbps = (bitsLoaded / durationSec) / (1024 * 1024);
+
+        const statusText = speedMbps < offlineThresholdMbps
+          ? `Device considered OFFLINE (Speed: ${speedMbps.toFixed(2)} Mbps)`
+          : `Device considered ONLINE (Speed: ${speedMbps.toFixed(2)} Mbps)`;
+
+        document.getElementById('status').innerText = statusText;
+
+      } catch (err) {
+        console.error('Fetch error:', err);
+        document.getElementById('status').innerText = 'Unable to check speed. Device OFFLINE';
+      }
+    }
+
+    // Initial call
+    checkEffectiveInternetStatus();
+
+    // Re-run every 10 seconds
+    setInterval(() => {
+      checkEffectiveInternetStatus();
+    }, intervalMs);
+  </script>
+</body>
+</html>
